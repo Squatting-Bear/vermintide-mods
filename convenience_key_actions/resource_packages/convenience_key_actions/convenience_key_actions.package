@@ -1,0 +1,11 @@
+mod = [
+	"convenience_key_actions"
+]
+
+package = [
+	"resource_packages/convenience_key_actions/convenience_key_actions"
+]
+
+lua = [
+	"scripts/mods/convenience_key_actions/*"
+]

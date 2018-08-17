@@ -1,0 +1,11 @@
+mod = [
+	"bots_impulse_control"
+]
+
+package = [
+	"resource_packages/bots_impulse_control/bots_impulse_control"
+]
+
+lua = [
+	"scripts/mods/bots_impulse_control/*"
+]

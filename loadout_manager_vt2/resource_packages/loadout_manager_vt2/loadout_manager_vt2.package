@@ -1,0 +1,12 @@
+mod =  [
+	"loadout_manager_vt2"
+]
+
+package = [
+	"resource_packages/loadout_manager_vt2/loadout_manager_vt2"
+]
+
+lua = [
+	"localization/*"
+	"scripts/mods/loadout_manager_vt2/*"
+]

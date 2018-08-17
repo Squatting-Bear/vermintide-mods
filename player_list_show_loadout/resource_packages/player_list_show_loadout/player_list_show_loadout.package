@@ -1,0 +1,11 @@
+mod = [
+	"player_list_show_loadout"
+]
+
+package = [
+	"resource_packages/player_list_show_loadout/player_list_show_loadout"
+]
+
+lua = [
+	"scripts/mods/player_list_show_loadout/*"
+]
