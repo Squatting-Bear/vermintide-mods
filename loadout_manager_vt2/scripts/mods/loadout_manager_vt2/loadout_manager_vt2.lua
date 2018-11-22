@@ -401,26 +401,26 @@ end
 
 -- Hook HeroWindowCharacterPreview.on_enter() to show the loadouts window whenever
 -- the "Equipment" or "Cosmetics" screens are shown.
-mod:hook_safe(HeroWindowCharacterPreview, "on_enter", function(self)
+local hook_HeroWindowCharacterPreview_on_enter = function(self)
 	mod.fatshark_view = self
 	mod.cloud_file:load(function(result)
 		mod.loadouts_data = result.data or {}
 		mod:reload_windows()
 	end)
-end)
+end
 
 -- Hook HeroWindowCharacterPreview.on_exit() to hide our windows whenever
 -- the "Equipment" or "Cosmetics" screens are hidden.
-mod:hook_safe(HeroWindowCharacterPreview, "on_exit", function()
+local hook_HeroWindowCharacterPreview_on_exit = function()
 	mod:destroy_windows()
 	mod.cloud_file:cancel()
 	mod.loadouts_data = nil
 	mod.fatshark_view = nil
-end)
+end
 
 -- Hook HeroWindowCharacterPreview.draw() to draw our collection of
 -- Fatshark-style widgets.
-mod:hook_safe(HeroWindowCharacterPreview, "draw", function(self, dt)
+local hook_HeroWindowCharacterPreview_draw = function(self, dt)
 	local window = mod.loadout_details_window
 	if window and window.fatshark_widgets then
 		local ui_renderer = self.ui_top_renderer
@@ -433,6 +433,21 @@ mod:hook_safe(HeroWindowCharacterPreview, "draw", function(self, dt)
 		end
 		UIRenderer.end_pass(ui_renderer)
 	end
+end
+
+local is_hero_preview_hooked = false
+
+-- Hook HeroViewStateOverview._setup_menu_layout to add our hooks to the HeroWindowCharacterPreview
+-- class, since it is lazy-loaded at that point.
+mod:hook(HeroViewStateOverview, "_setup_menu_layout", function(hooked_function, ...)
+	local use_gamepad_layout = hooked_function(...)
+	if not use_gamepad_layout and not is_hero_preview_hooked then
+		mod:hook_safe(HeroWindowCharacterPreview, "on_enter", hook_HeroWindowCharacterPreview_on_enter)
+		mod:hook_safe(HeroWindowCharacterPreview, "on_exit", hook_HeroWindowCharacterPreview_on_exit)
+		mod:hook_safe(HeroWindowCharacterPreview, "draw", hook_HeroWindowCharacterPreview_draw)
+		is_hero_preview_hooked = true
+	end
+	return use_gamepad_layout
 end)
 
 -- Hook HeroViewStateOverview.post_update() to perform the actual equipping of
