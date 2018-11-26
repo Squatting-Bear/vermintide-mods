@@ -450,6 +450,23 @@ mod:hook(HeroViewStateOverview, "_setup_menu_layout", function(hooked_function, 
 	return use_gamepad_layout
 end)
 
+-- This check is required to eliminate a couple of exploits that allowed players to equip items on careers
+-- for which they weren't intended.  (One exploit relied on quickly switching careers mid-restore, another
+-- involved creating loadouts in the modded realm then using them in the official realm.)
+local function is_equipment_valid(next_equip)
+	local fatshark_view = mod.fatshark_view
+	if not fatshark_view then
+		return false
+	end
+	local _, career_name = get_hero_and_career(fatshark_view)
+	local item_data = next_equip.item.data
+	local is_valid = table.contains(item_data.can_wield, career_name)
+	if not is_valid then
+		mod:echo("ERROR: cannot equip item " .. item_data.display_name .. " on career " .. career_name)
+	end
+	return is_valid
+end
+
 -- Hook HeroViewStateOverview.post_update() to perform the actual equipping of
 -- items when a loadout is restored, one at a time from the equipment queue.
 mod:hook_safe(HeroViewStateOverview, "post_update", function(self, dt, t)
@@ -473,10 +490,12 @@ mod:hook_safe(HeroViewStateOverview, "post_update", function(self, dt, t)
 				local next_equip = equipment_queue[1]
 				table.remove(equipment_queue, 1)
 		
-				local slot_type = next_equip.slot.type
-				self:_set_loadout_item(next_equip.item, slot_type)
-				if slot_type == ItemType.SKIN then
-					self:update_skin_sync()
+				if is_equipment_valid(next_equip) then
+					local slot_type = next_equip.slot.type
+					self:_set_loadout_item(next_equip.item, slot_type)
+					if slot_type == ItemType.SKIN then
+						self:update_skin_sync()
+					end
 				end
 			end
 		end

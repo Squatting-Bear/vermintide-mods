@@ -1,0 +1,5 @@
+.temp/
+
+**/bundleV2/*
+!**/bundleV2/mod.bin
+!**/bundleV2/mod.cer
