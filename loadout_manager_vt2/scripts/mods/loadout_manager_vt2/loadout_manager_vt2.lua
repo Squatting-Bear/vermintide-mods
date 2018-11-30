@@ -458,11 +458,25 @@ local function is_equipment_valid(next_equip)
 	if not fatshark_view then
 		return false
 	end
+
+	-- First check that the current career can wield the item being equipped.
 	local _, career_name = get_hero_and_career(fatshark_view)
 	local item_data = next_equip.item.data
 	local is_valid = table.contains(item_data.can_wield, career_name)
 	if not is_valid then
 		mod:echo("ERROR: cannot equip item " .. item_data.display_name .. " on career " .. career_name)
+	else
+		-- Also check that the item is going into an appropriate slot.
+		local actual_slot_type = item_data.slot_type
+		local expected_slot_type = next_equip.slot.type
+		if career_name == "dr_slayer" and expected_slot_type == ItemType.RANGED then
+			expected_slot_type = ItemType.MELEE
+		end
+
+		is_valid = (actual_slot_type == expected_slot_type)
+		if not is_valid then
+			mod:echo("ERROR: cannot equip item " .. item_data.display_name .. " in this slot type: " .. expected_slot_type)
+		end
 	end
 	return is_valid
 end
