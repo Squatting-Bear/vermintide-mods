@@ -7,7 +7,7 @@
 	and two functions for populating the widgets ("populate_items" for the
 	gear and cosmetics, and "populate_talents" for the talents).
 ]]
-return function(include_gear, include_talents, include_cosmetics)
+return function(include_gear, include_talents, include_cosmetics, align_right)
 	local width = 522
 	local top_margin = 91
 	local category_spacing = 47
@@ -27,12 +27,14 @@ return function(include_gear, include_talents, include_cosmetics)
 		root = {
 			is_root = true,
 			size = { 1920, 1080 },
-			position = { 0, 0, UILayer.default },
+			-- The Z value is chosen to ensure that these widgets are shown above the
+			-- PopupJoinLobbyHandler widgets.
+			position = { 0, 0, UILayer.matchmaking + 20 },
 		},
 		background_texture = {
 			parent = "root",
 			vertical_alignment = "center",
-			horizontal_alignment = "center",
+			horizontal_alignment = (align_right and "right") or "center",
 			size = { width, 654 },
 			position = { 0, 83, 0 },
 		},

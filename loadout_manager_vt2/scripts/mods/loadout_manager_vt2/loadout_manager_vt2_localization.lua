@@ -15,6 +15,13 @@ return {
 		en = "\n Saves the hero's currently equipped gear, talents, and\n" ..
 			" cosmetics to this loadout"
 	},
+	bot_override_box_label = {
+		en = "Bot Override"
+	},
+	bot_override_box_tooltip = {
+		en = "\n If this box is checked, when this hero is used as a bot\n" ..
+			" it will automatically use this career and loadout."
+	},
 	restore_button_label = {
 		en = "Load All"
 	},
