@@ -134,7 +134,7 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 			horizontal_alignment = "center",
 			vertical_alignment = "center",
 			size = { size[1], size[2] },
-			position = { 0, 0, (UILayer.ingame_player_list + 1) },
+			position = { 0, 5, (UILayer.ingame_player_list + 1) },
 		},
 		-- A row of icons showing the gear in the loadout
 		gear_grid = {
@@ -142,7 +142,7 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 			horizontal_alignment = "center",
 			vertical_alignment = "top",
 			size = gear_grid_size,
-			position = { 5, -4, 0 }
+			position = { 5, 0, 0 }
 		},
 		-- Five rows showing the selected talents in the loadout
 		talent_row_1 = {
@@ -150,7 +150,7 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 			horizontal_alignment = "center",
 			vertical_alignment = "top",
 			size = { talent_row_width, talent_row_height },
-			position = { 98, -217, 0 },
+			position = { 98, -213, 0 },
 		},
 		talent_row_2 = {
 			parent = "talent_row_1",
@@ -338,18 +338,17 @@ end)
 local function network_send_custom_data(player, items_by_slot_name, peer_id)
 	if not player.bot_player then
 		local items_backend = Managers.backend:get_interface("items")
-		local message_data = {}
 		for slot_name, item_holder in pairs(items_by_slot_name) do
 			if InventorySettings.slots_by_name[slot_name].ui_slot_index then
 				local item_data = item_holder.item_data
 				local item = item_data and item_data.backend_id and items_backend:get_item_from_id(item_data.backend_id)
 				local custom_data = item and item.CustomData
 				if custom_data then
-					message_data[slot_name] = item.CustomData
+					local message_data = { [slot_name] = item.CustomData }
+					mod:network_send("rpc_plsl_item_custom_data", (peer_id or "others"), message_data)
 				end
 			end
 		end
-		mod:network_send("rpc_plsl_item_custom_data", (peer_id or "others"), message_data)
 	end
 end
 

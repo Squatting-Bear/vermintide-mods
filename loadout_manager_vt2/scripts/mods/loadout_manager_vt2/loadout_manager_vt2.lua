@@ -9,6 +9,9 @@ local MAX_LOADOUTS = 10
 local InventorySettings = InventorySettings
 local SPProfiles = SPProfiles
 
+-- Workaround for deletion (in patch 1.5) of a function required by SimpleUI.
+UIResolutionScale = UIResolutionScale or UIResolutionScale_pow2
+
 mod.simple_ui = nil --get_mod("SimpleUI")
 mod.button_theme = nil
 mod.title_theme = nil
@@ -88,7 +91,7 @@ end
 
 -- Returns the size and position of the loadout buttons window.
 mod.get_gui_dimensions = function(self)
-	local scale = UISettings.ui_scale / 100
+	local scale = (UISettings.ui_scale or 100) / 100
 	local gui_size = { math.floor(511 * scale), math.floor(694 * scale) }
 	local align_right = self.is_in_hero_select_popup
 	local gui_x_position = math.floor((UIResolutionWidthFragments() - gui_size[1]) / ((align_right and 1) or 2))
@@ -137,7 +140,7 @@ mod.create_loadouts_window = function(self)
 
 		-- Add a button for each loadout, clicking which will open the details
 		-- window for that loadout.
-		local ui_scale = UISettings.ui_scale / 100
+		local ui_scale = (UISettings.ui_scale or 100) / 100
 		local button_size = { math.floor(33 * ui_scale), math.floor(33 * ui_scale) }
 		local spacing = math.floor(10 * ui_scale)
 		local margin = (window_size[1] - (MAX_LOADOUTS * button_size[1]) - ((MAX_LOADOUTS - 1) * spacing)) / 2
@@ -187,7 +190,7 @@ mod.create_loadout_details_window = function(self, loadout_number)
 		self:render_widgets()
 	end
 
-	local ui_scale = UISettings.ui_scale / 100
+	local ui_scale = (UISettings.ui_scale or 100) / 100
 	local function scale(value) return math.floor(value * ui_scale) end
 
 	-- Add the title textbox (shows the loadout name).
