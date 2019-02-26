@@ -10,7 +10,12 @@ local InventorySettings = InventorySettings
 local SPProfiles = SPProfiles
 
 -- Workaround for deletion (in patch 1.5) of a function required by SimpleUI.
-UIResolutionScale = UIResolutionScale or UIResolutionScale_pow2
+UIResolutionScale = UIResolutionScale or function()
+	local w, h = UIResolution()
+	local width_scale = (w / UIResolutionWidthFragments())
+	local height_scale = (h / UIResolutionHeightFragments())
+	return math.min(width_scale, height_scale)
+end
 
 mod.simple_ui = nil --get_mod("SimpleUI")
 mod.button_theme = nil
