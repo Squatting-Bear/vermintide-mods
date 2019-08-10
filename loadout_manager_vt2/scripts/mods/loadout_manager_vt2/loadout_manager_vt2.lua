@@ -10,12 +10,7 @@ local InventorySettings = InventorySettings
 local SPProfiles = SPProfiles
 
 -- Workaround for deletion (in patch 1.5) of a function required by SimpleUI.
-UIResolutionScale = UIResolutionScale or function()
-	local w, h = UIResolution()
-	local width_scale = (w / UIResolutionWidthFragments())
-	local height_scale = (h / UIResolutionHeightFragments())
-	return math.min(width_scale, height_scale)
-end
+UIResolutionScale = UIResolutionScale or UIResolutionScale_pow2
 
 mod.simple_ui = nil --get_mod("SimpleUI")
 mod.button_theme = nil
@@ -400,13 +395,12 @@ end
 -- Saves the given career's currently equipped gear, talents, and cosmetics to
 -- the loadout with the given loadout number.
 mod.save_loadout = function(self, loadout_number, career_name)
-	local items_backend = Managers.backend:get_interface("items")
 	local gear_loadout = {}
 	local cosmetics_loadout = {}
 
 	-- Add the current gear.
 	for _, slot in ipairs(InventorySettings.slots_by_ui_slot_index) do
-		local item_backend_id = items_backend:get_loadout_item_id(career_name, slot.name)
+		local item_backend_id = BackendUtils.get_loadout_item_id(career_name, slot.name)
 		if item_backend_id then
 			gear_loadout[slot.name] = item_backend_id
 		end
@@ -414,7 +408,7 @@ mod.save_loadout = function(self, loadout_number, career_name)
 
 	-- Add the current cosmetics.
 	for _, slot in ipairs(InventorySettings.slots_by_cosmetic_index) do
-		local item_backend_id = items_backend:get_loadout_item_id(career_name, slot.name)
+		local item_backend_id = BackendUtils.get_loadout_item_id(career_name, slot.name)
 		if item_backend_id then
 			cosmetics_loadout[slot.name] = item_backend_id
 		end
@@ -493,12 +487,12 @@ mod.restore_loadout = function(self, loadout_number, career_name, exclude_gear, 
 			local item_backend_id = (gear_loadout and gear_loadout[slot.name]) or (cosmetics_loadout and cosmetics_loadout[slot.name])
 			local item = item_backend_id and items_backend:get_item_from_id(item_backend_id)
 			if item then
-				local current_item_id = items_backend:get_loadout_item_id(career_name, slot.name)
+				local current_item_id = BackendUtils.get_loadout_item_id(career_name, slot.name)
 				if not current_item_id or current_item_id ~= item_backend_id then
 					if is_active_career then
 						equipment_queue[#equipment_queue + 1] = { slot = slot, item = item }
 					elseif is_equipment_valid(item, career_name, slot.name) then
-						items_backend:set_loadout_item(item_backend_id, career_name, slot.name)
+						BackendUtils.set_loadout_item(item_backend_id, career_name, slot.name)
 					end
 				end
 			end
@@ -661,9 +655,9 @@ mod:hook_safe(HeroViewStateOverview, "post_update", function(self, dt, t)
 				busy = true
 
 				if is_next_equip_valid(next_equip) then
-					local slot_type = next_equip.slot.type
-					self:_set_loadout_item(next_equip.item, slot_type)
-					if slot_type == ItemType.SKIN then
+					local slot = next_equip.slot
+					self:_set_loadout_item(next_equip.item, slot.name)
+					if slot.type == ItemType.SKIN then
 						self:update_skin_sync()
 					end
 				end
@@ -682,8 +676,8 @@ mod:hook_safe(HeroViewStateOverview, "post_update", function(self, dt, t)
 	end
 end)
 
--- When a 'bot override loadout' is in effect, this maps from hero name to override career.
-local bot_override_careers = {}
+-- The number of 'bot override loadouts' currently in effect.
+local bot_override_active_count = 0
 
 -- When a 'bot override loadout' is in effect, this maps from career name to loadout.
 local bot_override_loadouts = {}
@@ -702,49 +696,40 @@ end
 -- frequently, so to save a bit of cpu when they're not in use we keep those hooks
 -- disabled until we actually need them.
 local function check_bot_override_hooks()
-	local override_count = table.size(bot_override_careers)
-	if override_count == 1 then
-		mod:hook_enable(BackendInterfaceHeroAttributesPlayFab, "get")
+	if bot_override_active_count == 1 then
 		mod:hook_enable(BackendUtils, "get_loadout_item")
 		mod:hook_enable(BackendInterfaceTalentsPlayfab, "get_talents")
-	elseif override_count == 0 then
-		mod:hook_disable(BackendInterfaceHeroAttributesPlayFab, "get")
+	elseif bot_override_active_count == 0 then
 		mod:hook_disable(BackendUtils, "get_loadout_item")
 		mod:hook_disable(BackendInterfaceTalentsPlayfab, "get_talents")
 	end
 end
 
--- Hook PlayerBot.init to put a bot override loadout into effect if applicable for this bot.
-mod:hook_safe(PlayerBot, "init", function(self)
-	local profile = SPProfiles[self._profile_index]
+-- Hook GameModeAdventure._get_first_available_bot_profile to put a bot override loadout
+-- into effect if applicable for the bot.
+mod:hook(GameModeAdventure, "_get_first_available_bot_profile", function(hooked_function, self)
+	local profile_index, career_index = hooked_function(self)
+
+	local profile = SPProfiles[profile_index]
 	local hero_name = profile.display_name
 	local bot_overrides = mod.loadouts_data and mod.loadouts_data.bot_overrides
 	local bot_override = bot_overrides and bot_overrides[hero_name]
 
 	if bot_override then
 		local override_career_name = bot_override[1]
-		bot_override_careers[hero_name] = get_career_index_from_name(profile, override_career_name)
+		career_index = get_career_index_from_name(profile, override_career_name)
+		bot_override_active_count = bot_override_active_count + 1
 		bot_override_loadouts[override_career_name] = mod:get_loadout(bot_override[2], override_career_name)
 		check_bot_override_hooks()
 	end
+	return profile_index, career_index
 end)
 
--- Hook PlayerBot.destroy to remove a bot override loadout if one was used for this bot.
-mod:hook_safe(PlayerBot, "destroy", function(self)
-	local profile = SPProfiles[self._profile_index]
-	local hero_name = profile.display_name
-	local override_career_index = bot_override_careers[hero_name]
-	if override_career_index then
-		bot_override_careers[hero_name] = nil
-		bot_override_loadouts[profile.careers[override_career_index].name] = nil
-		check_bot_override_hooks()
-	end
-end)
-
--- Hook BackendInterfaceHeroAttributesPlayFab.get to return the bot override career
--- rather than the current human career, if a bot override loadout is in effect.
-mod:hook(BackendInterfaceHeroAttributesPlayFab, "get", function(hooked_function, self, hero_name, attribute_name)
-	return (attribute_name == "career" and bot_override_careers[hero_name]) or hooked_function(self, hero_name, attribute_name)
+-- Hook GameModeAdventure._clear_bots to clear any bot override loadouts in use.
+mod:hook_safe(GameModeAdventure, "_clear_bots", function(self)
+	bot_override_active_count = 0
+	bot_override_loadouts = {}
+	check_bot_override_hooks()
 end)
 
 -- Hook BackendUtils.get_loadout_item to return the equipment from the bot override

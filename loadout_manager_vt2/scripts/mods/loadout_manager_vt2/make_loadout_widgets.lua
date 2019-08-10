@@ -17,9 +17,9 @@ return function(include_gear, include_talents, include_cosmetics, align_right)
 	local gear_slot_count = #InventorySettings.equipment_slots
 	local cosmetic_slot_count = 3
 
-	-- Determine talent row height by scaling value from hero_window_talents_definitions (100)
+	-- Determine talent row height by scaling value from hero_window_talents_definitions (80)
 	local talent_row_scaling = 0.475
-	local talent_row_height = math.floor(100 * talent_row_scaling)
+	local talent_row_height = math.floor(80 * talent_row_scaling)
 	local talent_row_x_offset = math.floor(26 * talent_row_scaling)
 	local talent_row_spacing = 4
 
@@ -82,13 +82,20 @@ return function(include_gear, include_talents, include_cosmetics, align_right)
 			size = { width, talent_row_height },
 			position = { 0, -(talent_row_height + talent_row_spacing), 0 },
 		},
+		talent_row_6 = {
+			parent = "talent_row_5",
+			vertical_alignment = "bottom",
+			horizontal_alignment = "center",
+			size = { width, talent_row_height },
+			position = { 0, -(talent_row_height + talent_row_spacing), 0 },
+		},
 		-- A row of icons showing the cosmetics in the loadout
 		cosmetics_grid = {
-			parent = "talent_row_5",
+			parent = "talent_row_6",
 			vertical_alignment = "bottom",
 			horizontal_alignment = "left",
 			size = { width, gear_icon_size },
-			position = { (-talent_row_x_offset - gear_icon_size - gear_grid_spacing), -(gear_icon_size + category_spacing), 0 },
+			position = { (-talent_row_x_offset - gear_icon_size - gear_grid_spacing), -(gear_icon_size + category_spacing + talent_row_spacing), 0 },
 		},
 	}
 
@@ -125,7 +132,7 @@ return function(include_gear, include_talents, include_cosmetics, align_right)
 
 		-- Extract the widgets we want, rescaling to our desired size as we go.
 		local talents_widgets = {}
-		for i = 1, 5 do
+		for i = 1, 6 do
 			local widget_name = ("talent_row_" .. tostring(i))
 			local widget = raw_widgets[widget_name]
 			for _, style in pairs(widget.style) do
