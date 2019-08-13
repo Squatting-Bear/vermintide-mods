@@ -57,9 +57,9 @@ end
 mod.extract_talent_widgets = function(self)
 	local raw_widgets = dofile("scripts/ui/views/hero_view/windows/definitions/hero_window_talents_definitions").widgets
 
-	-- Get the widgets from each of the 5 talent rows.
+	-- Get the widgets from each of the 6 talent rows.
 	local talents_widgets = {}
-	for i = 1, 5 do
+	for i = 1, 6 do
 		local widget_name = ("talent_row_" .. tostring(i))
 		local raw_widget = raw_widgets[widget_name]
 		local raw_style = raw_widget.style
@@ -118,10 +118,10 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 	local gear_grid_spacing = 6
 	local gear_hover_frame_size = 128
 
-	-- Determine talent row height by scaling value from hero_window_talents_definitions (100)
+	-- Determine talent row height by scaling value from hero_window_talents_definitions (80)
 	local talent_row_width = 200
-	local talent_row_height = math.floor(100 * TALENT_WIDGET_SCALING)
-	local talent_row_spacing = 2
+	local talent_row_height = math.floor(80 * TALENT_WIDGET_SCALING)
+	local talent_row_spacing = 3
 
 	local scenegraph_definition = {
 		root = {
@@ -150,7 +150,7 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 			horizontal_alignment = "center",
 			vertical_alignment = "top",
 			size = { talent_row_width, talent_row_height },
-			position = { 98, -213, 0 },
+			position = { 98, -215, 0 },
 		},
 		talent_row_2 = {
 			parent = "talent_row_1",
@@ -175,6 +175,13 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 		},
 		talent_row_5 = {
 			parent = "talent_row_4",
+			horizontal_alignment = "center",
+			vertical_alignment = "bottom",
+			size = { talent_row_width, talent_row_height },
+			position = { 0, -(talent_row_height + talent_row_spacing), 0 },
+		},
+		talent_row_6 = {
+			parent = "talent_row_5",
 			horizontal_alignment = "center",
 			vertical_alignment = "bottom",
 			size = { talent_row_width, talent_row_height },
