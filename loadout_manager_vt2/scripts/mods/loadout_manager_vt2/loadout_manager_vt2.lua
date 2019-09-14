@@ -438,11 +438,13 @@ local function is_equipment_valid(item, career_name, slot_name)
 		-- Also check that the item is going into an appropriate slot.
 		local actual_slot_type = item_data.slot_type
 		local expected_slot_type = InventorySettings.slots_by_name[slot_name].type
-		if career_name == "dr_slayer" and expected_slot_type == ItemType.RANGED then
-			expected_slot_type = ItemType.MELEE
+		is_valid = (actual_slot_type == expected_slot_type)
+
+		if not is_valid and career_name == "dr_slayer" and expected_slot_type == ItemType.RANGED then
+			-- Special case: Slayer can equip a melee weapon in the ranged slot.
+			is_valid = (actual_slot_type == ItemType.MELEE)
 		end
 
-		is_valid = (actual_slot_type == expected_slot_type)
 		if not is_valid then
 			mod:echo("ERROR: cannot equip item " .. item_data.display_name .. " in this slot type: " .. expected_slot_type)
 		end

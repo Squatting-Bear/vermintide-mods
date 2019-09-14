@@ -256,7 +256,7 @@ end
 
 -- Hook IngamePlayerListUI.update_widgets to set a flag indicating we need to update our widgets.
 mod:hook_safe(IngamePlayerListUI, "update_widgets", function(self)
-	mod.needs_widget_update = true
+	mod.needs_widget_update = (Managers.state.game_mode:game_mode_key() ~= "weave")
 end)
 
 -- Hook IngamePlayerListUI.update_player_information to update our widgets.  We do that here
@@ -314,11 +314,14 @@ end)
 -- Hook IngamePlayerListUI.draw to draw our widgets.
 mod:hook_safe(IngamePlayerListUI, "draw", function(self, dt)
 	local loadout_displays = mod.loadout_displays
-	if loadout_displays then
+	if loadout_displays and (Managers.state.game_mode:game_mode_key() ~= "weave") then
 		local ui_renderer = self.ui_top_renderer
 		local input_service = self.input_manager:get_service("player_list_input")
 		local render_settings = self.render_settings
-		for i = 1, self.num_players do
+
+		-- The MAX_NUMBER_OF_PLAYERS check is due to a bug in the game that sometimes
+		-- causes num_players to be greater than the actual number of players.
+		for i = 1, math.min(self.num_players, MatchmakingSettings.MAX_NUMBER_OF_PLAYERS) do
 			local loadout_display = loadout_displays[i]
 			UIRenderer.begin_pass(ui_renderer, loadout_display.scenegraph, input_service, dt, nil, render_settings)
 			for _, widget_group in pairs(loadout_display.widgets) do
@@ -337,7 +340,7 @@ end)
 mod:hook_safe(IngamePlayerListUI, "set_active", function(self, is_active)
 	if is_active then
 		-- Update the widgets in case the player's loadout has changed.
-		mod.needs_widget_update = true
+		mod.needs_widget_update = (Managers.state.game_mode:game_mode_key() ~= "weave")
 	end
 end)
 
