@@ -1,0 +1,11 @@
+mod = [
+	"casual_mode"
+]
+
+package = [
+	"resource_packages/casual_mode/casual_mode"
+]
+
+lua = [
+	"scripts/mods/casual_mode/*"
+]
