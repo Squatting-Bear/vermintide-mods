@@ -25,6 +25,9 @@ return {
 		en = "Weapons, careers, and talents that have already been unlocked in the " ..
 			"official realm begin unlocked in the simple progression system.",
 	},
+	available_xp_label = {
+		en = "Available XP: %d",
+	},
 	property_unlock_button_tooltip ={
 		en = "Property Locked\nClick to unlock",
 	},

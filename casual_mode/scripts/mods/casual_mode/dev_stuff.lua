@@ -57,9 +57,7 @@ mod:hook(PlayFabRequestQueue, "enqueue", function(orig_func, self, request, succ
 	end
 end)
 
-
 --[[
 __ todo
-- show available xp in place of crafting materials
 - support for unlocking cosmetics
 ]]

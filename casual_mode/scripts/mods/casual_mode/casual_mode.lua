@@ -48,6 +48,13 @@ local function get_real_level(hero_name)
 	return ExperienceSettings.get_level(xp)
 end
 
+-- Since the hero level isn't meaningful, show the available XP instead
+-- in the inventory screen.
+mod:hook_safe(HeroWindowOptions, "_update_experience_presentation", function (self)
+	local text = mod:localize("available_xp_label", user_progression:get_available_xp())
+	self._widgets_by_name.level_text.content.text = text
+end)
+
 -- _________________________________________________________________________ --
 -- ENABLE CRAFTING IN MODDED REALM
 
@@ -125,8 +132,8 @@ mod:hook_safe(ItemGridUI, "init", function(self, category_settings, widget, hero
 		end
 	end
 end)
-	
--- When showin the 'craft item' page, replace the fatshark item grid widget with
+
+-- When showing the 'craft item' page, replace the fatshark item grid widget with
 -- one that supports our additional requirements.  Specifically, we add the
 -- ability to show a 'lock' icon on locked weapon templates.
 -- (See widget_hacks.make_hacked_item_grid_widget() for the code that makes the changes.)
