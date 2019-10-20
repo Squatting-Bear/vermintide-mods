@@ -1,5 +1,7 @@
 local mod = get_mod("player_list_show_loadout")
 
+local weave_ui_passes = mod:dofile("scripts/mods/player_list_show_loadout/weave_ui_passes")
+
 local TALENT_WIDGET_SCALING = 0.5
 
 -- Holds CustomData objects from other players' items.  These objects contain
@@ -49,6 +51,115 @@ local function add_selection_check(pass, hotspot_id)
 			return hotspot.is_selected and (not original_check or original_check(content, ...))
 		end
 	end
+end
+
+local weave_info_by_slot = {
+	slot_necklace = {
+		properties = table.set(WeaveProperties.categories.defence_accessory),
+		traits = table.set(WeaveTraits.categories.defence_accessory),
+		default_item_key = "necklace",
+	},
+	slot_ring = {
+		properties = table.set(WeaveProperties.categories.offence_accessory),
+		traits = table.set(WeaveTraits.categories.offence_accessory),
+		default_item_key = "ring",
+	},
+	slot_trinket_1 = {
+		properties = table.set(WeaveProperties.categories.utility_accessory),
+		traits = table.set(WeaveTraits.categories.utility_accessory),
+		default_item_key = "trinket",
+	},
+}
+
+-- Fetches the item equipped in the given slot.
+local function get_item_in_slot(slot_name, item_custom_data, inventory_extn, attachment_extn, is_for_display)
+	local item = nil
+	local is_in_weave = (Managers.state.game_mode:game_mode_key() == "weave")
+	local weaves_backend = is_in_weave and Managers.backend:get_interface("weaves")
+
+	if not is_in_weave or weaves_backend._valid_loadout_slots[slot_name] then
+		local slot_data = inventory_extn:get_slot_data(slot_name) or attachment_extn:get_slot_data(slot_name)
+		local slot_item = slot_data and slot_data.item_data
+		if slot_item then
+			if item_custom_data then
+				-- This item is on a remote player; use the custom data sent
+				-- by their instance of this mod, if they're running it.
+				item = { CustomData = item_custom_data[slot_name], ItemId = slot_item.key }
+				PlayFabMirror._update_data(nil, item)
+			else
+				local items_backend = Managers.backend:get_interface("items")
+				item = slot_item.backend_id and items_backend:get_item_from_id(slot_item.backend_id)
+
+				if item and is_in_weave and not is_for_display and item.CustomData then
+					-- We need to add this item's traits and properties to its CustomData
+					-- object so they can be sent to remote players.
+					item.CustomData.properties = (item.properties and cjson.encode(item.properties)) or nil
+					item.CustomData.traits = (item.traits and cjson.encode(item.traits)) or nil
+				end
+			end
+		end
+	else
+		-- We are in a weave and this slot isn't actually used, since the 'amulet' defines
+		-- those traits and properties instead.  We create a fake item containing the
+		-- relevant traits and properties for display in the loadout grid.
+		local weave_slot_info = weave_info_by_slot[slot_name]
+		if item_custom_data then
+			item = { CustomData = item_custom_data[slot_name], ItemId = weave_slot_info.default_item_key }
+		else
+			local career_name = inventory_extn.career_extension:career_name()
+			local properties = weaves_backend:get_loadout_properties(career_name)
+			local traits = weaves_backend:get_loadout_traits(career_name)
+
+			local item_properties = {}
+			local weave_properties_for_slot = weave_slot_info.properties
+			for property_key, property_slots_allocated in pairs(properties) do
+				if weave_properties_for_slot[property_key] then
+					local costs = weaves_backend:get_property_mastery_costs(property_key)
+					item_properties[property_key] = (#property_slots_allocated / #costs)
+				end
+			end
+
+			local item_traits = {}
+			local weave_traits_for_slot = weave_slot_info.traits
+			for trait_key, _ in pairs(traits) do
+				if weave_traits_for_slot[trait_key] then
+					table.insert(item_traits, trait_key)
+					inventory_icon = WeaveTraits.traits[trait_key].icon
+				end
+			end
+
+			local encoded_props = next(item_properties) and cjson.encode(item_properties)
+			local custom_data = { properties = (encoded_props or nil), traits = cjson.encode(item_traits) }
+			item = { CustomData = custom_data, ItemId = weave_slot_info.default_item_key }
+		end
+
+		PlayFabMirror._update_data(nil, item)
+	end
+
+	-- If the item is about to be displayed, we remove its slot_type to prevent the
+	-- side-by-side comparison tooltip from showing.  Also, if it is a jewellery item
+	-- we set the item icon to be the trait icon (if it has a trait).
+	if item and is_for_display then
+		item = table.clone(item)
+		item.data.slot_type = nil
+		if InventorySettings.slots_by_name[slot_name].category == "attachment" then
+			local trait_key = item and item.traits and item.traits[1]
+			if trait_key then
+				item.data.inventory_icon = ((is_in_weave and WeaveTraits) or WeaponTraits).traits[trait_key].icon
+			end
+		end
+	end
+	return item
+end
+
+-- Fetches the items equipped in each slot.
+local function get_items_by_slot(item_custom_data, inventory_extn, attachment_extn, is_for_display)
+	local result = {}
+	for _, slot in pairs(InventorySettings.slots_by_ui_slot_index) do
+		local item = get_item_in_slot(slot.name, item_custom_data, inventory_extn, attachment_extn, is_for_display)
+		result[slot] = item
+	end
+	return result
 end
 
 -- Loads the Fatshark widgets used by the talent selection window in the hero view, and extracts
@@ -206,7 +317,12 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 
 		rescale_style_value(style_value, gear_grid_scaling, true)
 	end
-	widgets.gear = { loadout_grid = UIWidget.init(gear_icons) }
+
+	-- We need to use a different gear-icons widget depending on whether we are in
+	-- weave mode or adventure mode.
+	local gear_icons_weave = weave_ui_passes.make_weave_loadout_grid(gear_icons)
+	gear_widgets = { loadout_grid_adv = UIWidget.init(gear_icons), loadout_grid_weave = UIWidget.init(gear_icons_weave) }
+	widgets.gear = { }
 
 	-- Add the five rows of selected talents.
 	widgets.talents = {}
@@ -217,27 +333,23 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 	return {
 		scenegraph = UISceneGraph.init_scenegraph(scenegraph_definition),
 		widgets = widgets,
+		gear_widgets = gear_widgets,
 		_equip_item_gear = HeroWindowLoadout._equip_item_presentation,
 		_populate_talents_by_hero = HeroWindowTalents._populate_talents_by_hero,
 		_clear_talents = HeroWindowTalents._clear_talents,
 		_equipment_items = {},
-		hero_level = 30,
+		hero_level = 35,
 
 		-- Populates the column of gear icons with items obtained from the given extensions.
 		populate_items = function(self, inventory_extn, attachment_extn, item_custom_data)
 			self._widgets_by_name = self.widgets.gear
-			local items_backend = Managers.backend:get_interface("items")
-			for _, slot in pairs(InventorySettings.slots_by_ui_slot_index) do
-				local slot_data = inventory_extn:get_slot_data(slot.name) or attachment_extn:get_slot_data(slot.name)
-				local slot_item = slot_data and slot_data.item_data
-				if slot_item then
-					local item = slot_item.backend_id and items_backend:get_item_from_id(slot_item.backend_id)
-					if not item then
-						-- Presumably this item is on a remote player; use the custom data sent
-						-- by their instance of this mod, if they're running it.
-						item = { CustomData = item_custom_data[slot.name], ItemId = slot_item.key }
-						PlayFabMirror._update_data(nil, item)
-					end
+			local is_in_weave = (Managers.state.game_mode:game_mode_key() == "weave")
+			local loadout_grid = (is_in_weave and self.gear_widgets.loadout_grid_weave) or self.gear_widgets.loadout_grid_adv
+			self._widgets_by_name.loadout_grid = loadout_grid
+
+			local items = get_items_by_slot(item_custom_data, inventory_extn, attachment_extn, true)
+			for slot, item in pairs(items) do
+				if item then
 					self:_equip_item_gear(item, slot)
 				end
 			end
@@ -256,7 +368,7 @@ end
 
 -- Hook IngamePlayerListUI.update_widgets to set a flag indicating we need to update our widgets.
 mod:hook_safe(IngamePlayerListUI, "update_widgets", function(self)
-	mod.needs_widget_update = (Managers.state.game_mode:game_mode_key() ~= "weave")
+	mod.needs_widget_update = true
 end)
 
 -- Hook IngamePlayerListUI.update_player_information to update our widgets.  We do that here
@@ -293,7 +405,7 @@ mod:hook_safe(IngamePlayerListUI, "update_player_information", function(self)
 				local inventory_extn = ScriptUnit.extension(player_unit, "inventory_system")
 				local attachment_extn = ScriptUnit.extension(player_unit, "attachment_system")
 				local is_human = player:is_player_controlled()
-				local item_custom_data = (is_human and mod.custom_data_by_peer[player.peer_id]) or {}
+				local item_custom_data = player.remote and ((is_human and mod.custom_data_by_peer[player.peer_id]) or {})
 				loadout_display:populate_items(inventory_extn, attachment_extn, item_custom_data)
 
 				-- Populate the talent boxes.
@@ -301,7 +413,7 @@ mod:hook_safe(IngamePlayerListUI, "update_player_information", function(self)
 				if player.remote then
 					selected_talents = (is_human and mod.talents_by_peer[player.peer_id]) or {}
 				else
-					local talents_backend = Managers.backend:get_interface("talents")
+					local talents_backend = Managers.backend:get_talents_interface()
 					local talent_extn = ScriptUnit.extension(player_unit, "talent_system")
 					selected_talents = talents_backend:get_talents(talent_extn._career_name)
 				end
@@ -314,7 +426,7 @@ end)
 -- Hook IngamePlayerListUI.draw to draw our widgets.
 mod:hook_safe(IngamePlayerListUI, "draw", function(self, dt)
 	local loadout_displays = mod.loadout_displays
-	if loadout_displays and (Managers.state.game_mode:game_mode_key() ~= "weave") then
+	if loadout_displays then
 		local ui_renderer = self.ui_top_renderer
 		local input_service = self.input_manager:get_service("player_list_input")
 		local render_settings = self.render_settings
@@ -340,50 +452,38 @@ end)
 mod:hook_safe(IngamePlayerListUI, "set_active", function(self, is_active)
 	if is_active then
 		-- Update the widgets in case the player's loadout has changed.
-		mod.needs_widget_update = (Managers.state.game_mode:game_mode_key() ~= "weave")
+		mod.needs_widget_update = true
 	end
 end)
 
 -- Helper function to send the CustomData objects from the given items to other players.
-local function network_send_custom_data(player, items_by_slot_name, peer_id)
+local function network_send_custom_data(player, items_by_slot, peer_id)
 	if not player.bot_player then
-		local items_backend = Managers.backend:get_interface("items")
-		for slot_name, item_holder in pairs(items_by_slot_name) do
-			if InventorySettings.slots_by_name[slot_name].ui_slot_index then
-				local item_data = item_holder.item_data
-				local item = item_data and item_data.backend_id and items_backend:get_item_from_id(item_data.backend_id)
-				local custom_data = item and item.CustomData
-				if custom_data then
-					local message_data = { [slot_name] = item.CustomData }
-					mod:network_send("rpc_plsl_item_custom_data", (peer_id or "others"), message_data)
-				end
+		for slot, item in pairs(items_by_slot) do
+			if slot.ui_slot_index and item.CustomData then
+				local message_data = { [slot.name] = item.CustomData }
+				mod:network_send("rpc_plsl_item_custom_data", (peer_id or "others"), message_data)
 			end
 		end
 	end
 end
 
--- Hook SimpleInventoryExtension.game_object_initialized to send CustomData from inventory
--- items to other players when we switch heroes.
-mod:hook_safe(SimpleInventoryExtension, "game_object_initialized", function(self, unit, unit_go_id)
-	network_send_custom_data(self.player, self._equipment.slots)
-end)
-
 -- Hook SimpleInventoryExtension._spawn_resynced_loadout to send CustomData from inventory
 -- items to other players when we change our equipped items.
 mod:hook_safe(SimpleInventoryExtension, "_spawn_resynced_loadout", function(self, equipment_to_spawn)
-	network_send_custom_data(self.player, { [equipment_to_spawn.slot_id] = equipment_to_spawn })
-end)
-
--- Hook PlayerUnitAttachmentExtension.game_object_initialized to send CustomData from attached
--- items to other players when we switch heroes.
-mod:hook_safe(PlayerUnitAttachmentExtension, "game_object_initialized", function(self, unit, unit_go_id)
-	network_send_custom_data(self._player, self._attachments.slots)
+	local slot = InventorySettings.slots_by_name[equipment_to_spawn.slot_id]
+	local attachment_extn = ScriptUnit.extension(self.player.player_unit, "attachment_system")
+	local item = get_item_in_slot(slot.name, nil, self, attachment_extn, false)
+	network_send_custom_data(self.player, { [slot] = item })
 end)
 
 -- Hook PlayerUnitAttachmentExtension.spawn_resynced_loadout to send CustomData from attached
 -- items to other players when we change our equipped items.
 mod:hook_safe(PlayerUnitAttachmentExtension, "spawn_resynced_loadout", function(self, item_to_spawn)
-	network_send_custom_data(self._player, { [item_to_spawn.slot_id] = item_to_spawn })
+	local slot = InventorySettings.slots_by_name[item_to_spawn.slot_id]
+	local inventory_extn = ScriptUnit.extension(self._player.player_unit, "inventory_system")
+	local item = get_item_in_slot(slot.name, nil, inventory_extn, self, false)
+	network_send_custom_data(self._player, { [slot] = item })
 end)
 
 -- Add an RPC handler for receiving CustomData objects from other players.
@@ -399,15 +499,31 @@ end)
 -- Helper function to send our talent loadout to other players.
 local function network_send_talents(player, career_name, peer_id)
 	if not player.bot_player then
-		local talents = Managers.backend:get_interface("talents"):get_talents(career_name)
+		local talents = Managers.backend:get_talents_interface():get_talents(career_name)
 		mod:network_send("rpc_plsl_player_talents", (peer_id or "others"), talents)
 	end
 end
 
--- Hook TalentExtension.game_object_initialized to send our talent loadout to other
--- players when we switch heroes.
-mod:hook_safe(TalentExtension, "game_object_initialized", function(self, unit, unit_go_id)
-	network_send_talents(self.player, self._career_name)
+-- Sends our currently selected talents, and the custom data for all our equipped
+-- items, to remote players.
+local function network_send_everything(player, optional_peer_id)
+	local our_unit = player.player_unit
+	if our_unit then
+		local peer_id = (optional_peer_id or "others")
+		local inventory_extn = ScriptUnit.extension(our_unit, "inventory_system")
+		local attachment_extn = ScriptUnit.extension(our_unit, "attachment_system")
+		local items_by_slot = get_items_by_slot(nil, inventory_extn, attachment_extn, false)
+		network_send_custom_data(player, items_by_slot, peer_id)
+
+		local talent_extn = ScriptUnit.extension(our_unit, "talent_system")
+		network_send_talents(player, talent_extn._career_name, peer_id)
+	end
+end
+
+-- Hook BulldozerPlayer.spawn to send our talent loadout to other players when we
+-- connect to a host, start a mission or switch heroes.
+mod:hook_safe(BulldozerPlayer, "spawn", function(self, optional_position, optional_rotation, is_initial_spawn, ...)
+	network_send_everything(self)
 end)
 
 -- Hook TalentExtension.talents_changed to send our talent loadout to other players when
@@ -421,22 +537,12 @@ mod:network_register("rpc_plsl_player_talents", function(sender_peer_id, talents
 	mod.talents_by_peer[sender_peer_id] = talents
 end)
 
--- Handle the on_user_joined event so we can send our gear CustomData and talent loadout
--- to the player who just joined.
+-- Handle the on_user_joined event so we can send our gear CustomData and talent loadout to
+-- the player who just joined.  Note that if we're getting this notification because *we* just
+-- connected, our player unit won't be set yet so network_send_everything will do nothing.
 mod.on_user_joined = function(player)
 	local our_player = Managers.player:local_player()
-	local our_unit = our_player.player_unit
-	if our_unit and Unit.alive(our_unit) then
-		local peer_id = player.peer_id
-		local inventory_extn = ScriptUnit.extension(our_unit, "inventory_system")
-		network_send_custom_data(our_player, inventory_extn:equipment().slots, peer_id)
-
-		local attachment_extn = ScriptUnit.extension(our_unit, "attachment_system")
-		network_send_custom_data(our_player, attachment_extn:attachments().slots, peer_id)
-
-		local talent_extn = ScriptUnit.extension(our_unit, "talent_system")
-		network_send_talents(our_player, talent_extn._career_name, peer_id)
-	end
+	network_send_everything(our_player, player.peer_id)
 end
 
 -- Handle the on_user_left event to release the player's data for garbage collection.
