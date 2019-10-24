@@ -765,7 +765,7 @@ mod:hook(StateInGameRunning, "_submit_weave_scores", function (self)
 end)
 
 -- Pretend we are trusted so that the end-mission rewards will be computed.
-mod:hook(LevelEndView_Base, "init", function(orig_func, self, context)
+mod:hook(LevelEndViewBase, "init", function(orig_func, self, context)
 	local real_eac_untrusted = script_data["eac-untrusted"]
 	script_data["eac-untrusted"] = false
 	orig_func(self, context)
