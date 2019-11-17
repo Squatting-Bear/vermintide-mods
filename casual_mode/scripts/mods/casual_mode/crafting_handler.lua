@@ -31,6 +31,28 @@ local function add_all_items_to_backend(backend_mirror, raw_items_by_id)
 	end
 end
 
+-- Ensures that the backend items representing crafting materials are created, by
+-- creating fake ones if necessary (it seems that the real ones are only created
+-- the first time a salvage operation produces material of that kind).
+local function ensure_crafting_materials_created()
+	local backend_items = Managers.backend:get_interface("items")
+	local crafting_material_items = backend_items:get_filtered_items("item_type == crafting_material")
+	local crafting_material_keys = table.set(UISettings.crafting_material_order)
+	for _, item in ipairs(crafting_material_items) do
+		crafting_material_keys[item.data.key] = nil
+	end
+
+	for item_key, _ in pairs(crafting_material_keys) do
+		local backend_id = Application.guid()
+		local item = {
+			ItemId = item_key,
+			ItemInstanceId = backend_id,
+			RemainingUses = 10,
+		}
+		add_item_to_backend(backend_items._backend_mirror, backend_id, item)
+	end
+end
+
 -- Helper function that retrieves the item from the given item_id_and_amount object.
 local function get_mod_created_item(item_id_and_amount, optional_backend_items)
 	local item_backend_id = item_id_and_amount.backend_id
@@ -233,4 +255,5 @@ return {
 	end,
 
 	add_item_to_backend = add_item_to_backend,
+	ensure_crafting_materials_created = ensure_crafting_materials_created,
 }

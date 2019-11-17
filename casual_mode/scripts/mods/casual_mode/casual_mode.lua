@@ -86,6 +86,7 @@ mod:hook(HeroWindowCrafting, "on_enter", function(orig_func, self, ...)
 		table.remove(ui_improvements_mod.button_list, 7)
 		table.remove(ui_improvements_mod.button_list, 5)
 	end
+	crafting_handler.ensure_crafting_materials_created()
 	orig_func(self, ...)
 	self:_change_recipe_page(2)
 end)
