@@ -85,7 +85,7 @@ local function get_item_in_slot(slot_name, item_custom_data, inventory_extn, att
 				-- This item is on a remote player; use the custom data sent
 				-- by their instance of this mod, if they're running it.
 				item = { CustomData = item_custom_data[slot_name], ItemId = slot_item.key }
-				PlayFabMirror._update_data(nil, item)
+				PlayFabMirrorBase._update_data(nil, item)
 			else
 				local items_backend = Managers.backend:get_interface("items")
 				item = slot_item.backend_id and items_backend:get_item_from_id(slot_item.backend_id)
@@ -95,7 +95,7 @@ local function get_item_in_slot(slot_name, item_custom_data, inventory_extn, att
 					-- object so they can be sent to remote players.
 					item.CustomData.properties = (item.properties and cjson.encode(item.properties)) or nil
 					item.CustomData.traits = (item.traits and cjson.encode(item.traits)) or nil
-				end
+				end	
 			end
 		end
 	else
@@ -133,7 +133,7 @@ local function get_item_in_slot(slot_name, item_custom_data, inventory_extn, att
 			item = { CustomData = custom_data, ItemId = weave_slot_info.default_item_key }
 		end
 
-		PlayFabMirror._update_data(nil, item)
+		PlayFabMirrorBase._update_data(nil, item)
 	end
 
 	-- If the item is about to be displayed, we remove its slot_type to prevent the
