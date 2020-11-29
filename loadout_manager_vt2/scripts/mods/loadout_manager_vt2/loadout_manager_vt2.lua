@@ -440,8 +440,8 @@ local function is_equipment_valid(item, career_name, slot_name)
 		local expected_slot_type = InventorySettings.slots_by_name[slot_name].type
 		is_valid = (actual_slot_type == expected_slot_type)
 
-		if not is_valid and career_name == "dr_slayer" and expected_slot_type == ItemType.RANGED then
-			-- Special case: Slayer can equip a melee weapon in the ranged slot.
+		if not is_valid and (career_name == "dr_slayer" or career_name == "es_questingknight") and expected_slot_type == ItemType.RANGED then
+			-- Special case: Slayer and Grail Knight can equip a melee weapon in the ranged slot.
 			is_valid = (actual_slot_type == ItemType.MELEE)
 		end
 
