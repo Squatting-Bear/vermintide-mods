@@ -220,9 +220,9 @@ mod:hook(BackendInterfaceCraftingPlayfab, "craft", function(orig_func, self, car
 	end
 end)
 
--- Hook PlayFabMirror._request_characters_adventure since it is called just after the real
+-- Hook PlayFabMirrorAdventure.request_characters since it is called just after the real
 -- items are added to the backend cache, so it's a good point to add our fake ones.
-mod:hook(PlayFabMirror, "_request_characters_adventure", function(orig_func, self)
+mod:hook(PlayFabMirrorAdventure, "request_characters", function(orig_func, self)
 	if saved_items_by_id then
 		add_all_items_to_backend(self, saved_items_by_id)
 		are_items_loaded = true
@@ -234,7 +234,7 @@ end)
 
 -- Prevent the backend cache from considering itself 'ready' until after we have
 -- added our items.
-mod:hook(PlayFabMirror, "ready", function(orig_func, self)
+mod:hook(PlayFabMirrorBase, "ready", function(orig_func, self)
 	if not are_items_loaded and saved_items_by_id and self._inventory_items then
 		self:_request_characters_adventure()
 	end

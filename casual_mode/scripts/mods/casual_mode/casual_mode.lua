@@ -55,6 +55,11 @@ mod:hook_safe(HeroWindowOptions, "_update_experience_presentation", function (se
 	self._widgets_by_name.level_text.content.text = text
 end)
 
+-- Give user access to all difficulty levels.
+mod:hook(BulldozerPlayer, "best_aquired_power_level", function(orig_func, self)
+	return DifficultySettings.cataclysm_3.required_power_level
+end)
+
 -- _________________________________________________________________________ --
 -- ENABLE CRAFTING IN MODDED REALM
 
@@ -721,7 +726,13 @@ end)
 -- When the user clicks on a locked career, show an unlock popup.
 mod:hook_safe(CharacterSelectionStateCharacter, "_select_hero", function(self, profile_index, career_index, is_initializing)
 	if not is_initializing then
-		local widget_index = ((self._selected_hero_row - 1) * self._num_max_hero_columns) + self._selected_hero_column
+		-- Find the index of the selected hero's widget in the grid.
+		local widget_index = 0
+		for i = 1, self._selected_hero_row - 1, 1 do
+			widget_index = widget_index + self._num_hero_columns[i]
+		end
+		widget_index = widget_index + self._selected_hero_column
+	
 		local content = self._hero_widgets[widget_index].content
 		if content.locked then
 			-- Show an 'unlock feature' popup.
