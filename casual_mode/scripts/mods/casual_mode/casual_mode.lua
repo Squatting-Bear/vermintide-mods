@@ -233,6 +233,15 @@ local is_weapon_slot_type = {
 	melee = true,
 }
 
+-- The item master list should specify a dlc requirement for these weapons, but doesn't.
+local required_dlc_fixes = {
+	dr_deus_01 = "grass",
+	es_deus_01 = "grass",
+	we_deus_01 = "grass",
+	bw_deus_01 = "grass",
+	wh_deus_01 = "grass",
+}
+
 -- Helper function to hide the widgets that show crafting ingredients.
 local function hide_recipe_grid(craft_page)
 	for _, widget in ipairs(craft_page._widgets) do
@@ -259,6 +268,17 @@ mod:hook_safe(CraftPageCraftItem, "create_ui_elements", function(self, params)
 	local default_items = table.shallow_copy(UISettings.default_items)
 	default_items["we_longbow_trueflight"] = nil
 	local backend_items = Managers.backend:get_interface("items")
+
+	-- Remove items that come from DLCs the user doesn't own.
+	local unlock_manager = Managers.unlock
+	local item_master_list = ItemMasterList
+	for item_name, _ in pairs(default_items) do
+		local item_data = item_master_list[item_name]
+		local required_dlc = item_data.required_dlc or required_dlc_fixes[item_name]
+		if required_dlc and not unlock_manager:is_dlc_unlocked(required_dlc) then
+			default_items[item_name] = nil
+		end
+	end
 
 	-- Eliminate templates the user already has.
 	local crafting_items = backend_items:get_filtered_items("can_craft_with")
@@ -720,7 +740,11 @@ mod:hook(ProgressionUnlocks, "is_unlocked_for_profile", function(orig_func, unlo
 		local real_level = get_real_level(profile)
 		is_locked = not orig_func(unlock_name, profile, real_level)
 	end
-	return not is_locked
+	if is_locked then
+		-- The string we return doesn't seem to be actually used anywhere, so I haven't bothered with l10n.
+		return false, "Click to spend XP to unlock this career"
+	end
+	return true
 end)
 
 -- When the user clicks on a locked career, show an unlock popup.
