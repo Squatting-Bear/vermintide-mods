@@ -19,7 +19,7 @@ mod.checkbox_theme = nil
 mod.cloud_file = nil
 mod.loadouts_data = nil
 mod.fatshark_view = nil
-mod.is_in_hero_select_popup = false
+mod.profile_picker_info = nil
 mod.loadouts_window = nil
 mod.loadout_details_window = nil
 mod.equipment_queue = {}
@@ -78,8 +78,9 @@ end
 -- should be displayed.
 mod.get_hero_and_career = function(self)
 	local fatshark_view = self.fatshark_view
-	if self.is_in_hero_select_popup then
-		return fatshark_view._selected_hero_name, fatshark_view._selected_career_name, fatshark_view._selected_career_index
+	if self.profile_picker_info then
+		local career = self.profile_picker_info.selected_career
+		return self.profile_picker_info.selected_profile.name, career.name, career.index
 	else
 		local profile_index = FindProfileIndex(fatshark_view.hero_name)
 		local profile = SPProfiles[profile_index]
@@ -93,7 +94,7 @@ end
 mod.get_gui_dimensions = function(self)
 	local scale = (UISettings.ui_scale or 100) / 100
 	local gui_size = { math.floor(511 * scale), math.floor(694 * scale) }
-	local align_right = self.is_in_hero_select_popup
+	local align_right = not not self.profile_picker_info
 	local gui_x_position = math.floor((UIResolutionWidthFragments() - gui_size[1]) / ((align_right and 1) or 2))
 	local gui_y_position = math.floor((UIResolutionHeightFragments() - gui_size[2])/2 + 62*scale)
 	local gui_position = { gui_x_position, gui_y_position }
@@ -174,7 +175,7 @@ mod.create_loadout_details_window = function(self, loadout_number)
 	self:destroy_loadout_details_window()
 
 	local hero_name, career_name, career_index = self:get_hero_and_career()
-	local is_editable = not self.is_in_hero_select_popup
+	local is_editable = not self.profile_picker_info
 
 	local gui_size, gui_position, loadout_buttons_height = self:get_gui_dimensions()
 	local window_height = gui_size[2] - loadout_buttons_height
@@ -329,7 +330,7 @@ mod.create_loadout_details_window = function(self, loadout_number)
 	end
 
 	-- Add the (fatshark) widgets that display the contents of this loadout.
-	local widget_populator = mod.make_loadout_widgets(gear_loadout, talents_loadout, cosmetics_loadout, self.is_in_hero_select_popup)
+	local widget_populator = mod.make_loadout_widgets(gear_loadout, talents_loadout, cosmetics_loadout, not not self.profile_picker_info)
 	window.scenegraph = widget_populator.scenegraph
 	window.fatshark_widgets = widget_populator.fatshark_widgets
 
@@ -461,7 +462,7 @@ mod.restore_loadout = function(self, loadout_number, career_name, exclude_gear, 
 		self:echo("Error: loadout #"..tostring(loadout_number).." not found for career "..career_name)
 		return
 	end
-	local is_active_career = not self.is_in_hero_select_popup
+	local is_active_career = not self.profile_picker_info
 
 	-- Restore talent selection (code based on HeroWindowTalents.on_exit)
 	local talents_loadout = (not exclude_talents) and loadout.talents
@@ -584,39 +585,35 @@ mod:hook(HeroViewStateOverview, "_setup_menu_layout", function(hooked_function, 
 	return use_gamepad_layout
 end)
 
--- Hook PopupJoinLobbyHandler._select_hero to show the loadouts window for the
--- currently selected hero in the popup shown when an alternate hero must be
--- chosen while joining a game.
-mod:hook_safe(PopupJoinLobbyHandler, "_select_hero", function(self, profile_index, career_index, ignore_sound)
-	mod.fatshark_view = self
-	mod.is_in_hero_select_popup = true
-	mod:destroy_windows()
-
-	local active_profile = Managers.player:local_player():profile_index()
-	if profile_index ~= active_profile and not self._occupied_heroes[profile_index] then
-		mod:create_loadouts_window()
+-- -- Hook PopupProfilePicker.update to show the loadouts window for the
+-- -- currently selected hero in the popup shown when an alternate hero must be
+-- -- chosen while joining a game.
+mod:hook_safe(PopupProfilePicker, "update", function(popup, dt, ...)
+	local picker_info = mod.profile_picker_info
+	if not picker_info then
+		picker_info = {}
+		mod.profile_picker_info = picker_info
+		mod.fatshark_view = popup
 	end
+
+	if picker_info.selected_profile ~= popup._selected_profile or picker_info.selected_career ~= popup._selected_career then
+		picker_info.selected_profile = popup._selected_profile
+		picker_info.selected_career = popup._selected_career
+		mod:destroy_windows()
+		
+		if not picker_info.selected_profile.unavailable and not picker_info.selected_career.locked then
+			mod:create_loadouts_window()
+		end
+	end
+
+	draw_fatshark_widgets(popup._ui_top_renderer, StrictNil, popup:input_service(), dt)
 end)
 
--- Hook PopupJoinLobbyHandler.hide to hide the loadouts window.
-mod:hook_safe(PopupJoinLobbyHandler, "hide", function(self)
+-- Hook PopupProfilePicker.hide to hide the loadouts window when the popup goes away.
+mod:hook_safe(PopupProfilePicker, "hide", function(self)
 	mod:destroy_windows()
 	mod.fatshark_view = nil
-	mod.is_in_hero_select_popup = false
-end)
-
--- Hook PopupJoinLobbyHandler.draw to draw the fatshark-style widgets in the
--- loadout details window.
-mod:hook_safe(PopupJoinLobbyHandler, "draw", function(self, ui_top_renderer, input_service, dt)
-	draw_fatshark_widgets(ui_top_renderer, self.render_settings, input_service, dt)
-end)
-
--- Hook PopupJoinLobbyHandler._handle_input to suppress PopupJoinLobbyHandler's
--- handling of right-clicks (which dismisses the popup) since we want to be able
--- to restore loadouts on right-clicks.
-mod:hook(PopupJoinLobbyHandler, "_handle_input", function(hooked_function, self, ...)
-	self:input_service():get("back_menu", true)
-	hooked_function(self, ...)
+	mod.profile_picker_info = nil
 end)
 
 -- Checks whether the next item in the equipment queue can be validly equipped
