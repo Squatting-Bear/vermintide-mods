@@ -373,9 +373,24 @@ mod.destroy_loadout_details_window = function(self)
 	end
 end
 
+-- Returns the collection of loadouts relevant to the current game mode.
+mod.get_loadouts = function(self)
+	local data_root = self.loadouts_data
+	if Managers.mechanism:current_mechanism_name() ~= "deus" then
+		return data_root
+	else
+		local deus_loadouts = data_root.deus_loadouts
+		if not deus_loadouts then
+			deus_loadouts = {}
+			data_root.deus_loadouts = deus_loadouts
+		end
+		return deus_loadouts
+	end
+end
+
 -- Returns the loadout with the given loadout number, for the given career.
 mod.get_loadout = function(self, loadout_number, career_name)
-	return self.loadouts_data[(career_name .. "/" .. tostring(loadout_number))]
+	return self:get_loadouts()[(career_name .. "/" .. tostring(loadout_number))]
 end
 
 -- Modifies and saves the loadout with the given loadout number, for the given
@@ -385,7 +400,7 @@ mod.modify_loadout = function(self, loadout_number, career_name, modifying_funct
 	local loadout = self:get_loadout(loadout_number, career_name)
 	if not loadout then
 		loadout = {}
-		self.loadouts_data[(career_name .. "/" .. tostring(loadout_number))] = loadout
+		self:get_loadouts()[(career_name .. "/" .. tostring(loadout_number))] = loadout
 	end
 	modifying_functor(loadout)
 
@@ -514,17 +529,17 @@ end
 -- Returns true if the given loadout is the currently selected 'bot override' for
 -- the given career.
 mod.is_bot_override = function(self, loadout_number, career_name, hero_name)
-	local bot_overrides = self.loadouts_data.bot_overrides
+	local bot_overrides = self:get_loadouts().bot_overrides
 	local hero_override = bot_overrides and bot_overrides[hero_name]
 	return hero_override and (hero_override[1] == career_name) and (hero_override[2] == loadout_number)
 end
 
 -- Selects or deselects the given loadout as the 'bot override' for the given career.
 mod.set_bot_override = function(self, loadout_number, career_name, hero_name, is_enabled)
-	local bot_overrides = self.loadouts_data.bot_overrides
+	local bot_overrides = self:get_loadouts().bot_overrides
 	if not bot_overrides then
 		bot_overrides = {}
-		self.loadouts_data.bot_overrides = bot_overrides
+		self:get_loadouts().bot_overrides = bot_overrides
 	end
 	bot_overrides[hero_name] = (is_enabled and { career_name, loadout_number }) or nil
 
@@ -706,12 +721,12 @@ end
 
 -- Hook GameModeAdventure._get_first_available_bot_profile to put a bot override loadout
 -- into effect if applicable for the bot.
-mod:hook(GameModeAdventure, "_get_first_available_bot_profile", function(hooked_function, self)
+local function on_bot_spawned(hooked_function, self)
 	local profile_index, career_index = hooked_function(self)
 
 	local profile = SPProfiles[profile_index]
 	local hero_name = profile.display_name
-	local bot_overrides = mod.loadouts_data and mod.loadouts_data.bot_overrides
+	local bot_overrides = mod.loadouts_data and mod:get_loadouts().bot_overrides
 	local bot_override = bot_overrides and bot_overrides[hero_name]
 
 	if bot_override then
@@ -722,14 +737,18 @@ mod:hook(GameModeAdventure, "_get_first_available_bot_profile", function(hooked_
 		check_bot_override_hooks()
 	end
 	return profile_index, career_index
-end)
+end
+mod:hook(GameModeAdventure, "_get_first_available_bot_profile", on_bot_spawned)
+mod:hook(GameModeDeus, "_get_first_available_bot_profile", on_bot_spawned)
 
 -- Hook GameModeAdventure._clear_bots to clear any bot override loadouts in use.
-mod:hook_safe(GameModeAdventure, "_clear_bots", function(self)
+local function on_bots_cleared(self)
 	bot_override_active_count = 0
 	bot_override_loadouts = {}
 	check_bot_override_hooks()
-end)
+end
+mod:hook_safe(GameModeAdventure, "_clear_bots", on_bots_cleared)
+mod:hook_safe(GameModeDeus, "_clear_bots", on_bots_cleared)
 
 -- Hook BackendUtils.get_loadout_item to return the equipment from the bot override
 -- loadout if one is in effect.
