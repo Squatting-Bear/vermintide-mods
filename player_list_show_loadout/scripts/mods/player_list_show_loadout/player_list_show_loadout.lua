@@ -366,6 +366,11 @@ mod.create_loadout_display = function(self, player_list_scenegraph)
 	}
 end
 
+-- This mod doesn't work properly in the Chaos Wastes (known as "deus" mode in the game source).
+local function is_in_chaos_wastes()
+	return (Managers.state.game_mode:game_mode_key() == "deus")
+end
+
 -- Hook IngamePlayerListUI.update_widgets to set a flag indicating we need to update our widgets.
 mod:hook_safe(IngamePlayerListUI, "update_widgets", function(self)
 	mod.needs_widget_update = true
@@ -377,7 +382,10 @@ end)
 mod:hook_safe(IngamePlayerListUI, "update_player_information", function(self)
 	if mod.needs_widget_update then
 		mod.needs_widget_update = false
-		if not mod.loadout_displays then
+		if is_in_chaos_wastes() then
+			mod.loadout_displays = nil
+			return
+		elseif not mod.loadout_displays then
 			-- We haven't created our widgets yet, so do it now.
 			local loadout_displays = {}
 			for i = 1, MatchmakingSettings.MAX_NUMBER_OF_PLAYERS do
