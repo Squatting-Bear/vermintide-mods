@@ -893,6 +893,7 @@ mod:hook_safe(EndViewStateSummary, "on_enter", function(self, params)
 		experience_to_add = experience_to_add,
 		total_progress = (total_xp_gained / total_xp_possible),
 		start_progress = 0,
+		bonus_experience = 0,
 		total_time = time,
 	}
 
