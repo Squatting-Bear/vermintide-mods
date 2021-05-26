@@ -5,7 +5,8 @@ local mod = get_mod("loadout_manager_vt2")
 	Allows you to save and restore gear and talent loadouts.
 --]]
 
-local MAX_LOADOUTS = 10
+local NUM_LOADOUT_BUTTONS = 10
+local NUM_LOADOUTS_BUTTONS_PAGES = 3
 local InventorySettings = InventorySettings
 local SPProfiles = SPProfiles
 
@@ -46,6 +47,11 @@ mod.on_all_mods_loaded = function()
 		button_theme.color_text_clicked = Colors.get_color_table_with_alpha("font_default", 255)
 		button_theme.shadow = { layers = 4, border = 0, color = Colors.get_color_table_with_alpha("white", 35) }
 		mod.button_theme = button_theme
+
+		-- Create a style for the next/prev loadouts page buttons.
+		local change_page_button_theme = table.clone(button_theme)
+		change_page_button_theme.shadow = { layers = 0 }
+		mod.change_page_button_theme = change_page_button_theme
 
 		-- Create a style for the title text of the loadout details window.
 		local title_theme = table.merge(table.clone(button_theme), mod.simple_ui.themes.default.textbox)
@@ -126,15 +132,21 @@ mod.create_loadouts_window = function(self)
 		local window_name = "loadoutmgr_loadouts"
 		self.loadouts_window = self.simple_ui:create_window(window_name, window_position, window_size)
 
+		self.loadouts_window.loadouts_page_index = 0
+		local compute_loadout_number = function(button_column)
+			return (self.loadouts_window.loadouts_page_index * NUM_LOADOUT_BUTTONS) + button_column
+		end
+
 		local _, career_name = self:get_hero_and_career()
 		local on_button_click = function(event)
 			local button_column = event.params
-			mod:create_loadout_details_window(button_column)
+			mod:create_loadout_details_window(compute_loadout_number(button_column))
 		end
 		local on_button_right_click = function(button)
 			local button_column = button.params
-			if self:get_loadout(button_column, career_name) then
-				mod:restore_loadout(button_column, career_name)
+			local loadout_number = compute_loadout_number(button_column)
+			if self:get_loadout(loadout_number, career_name) then
+				mod:restore_loadout(loadout_number, career_name)
 				mod:destroy_loadout_details_window()
 			end
 		end
@@ -144,19 +156,47 @@ mod.create_loadouts_window = function(self)
 		local ui_scale = (UISettings.ui_scale or 100) / 100
 		local button_size = { math.floor(33 * ui_scale), math.floor(33 * ui_scale) }
 		local spacing = math.floor(10 * ui_scale)
-		local margin = (window_size[1] - (MAX_LOADOUTS * button_size[1]) - ((MAX_LOADOUTS - 1) * spacing)) / 2
+		local margin = (window_size[1] - (NUM_LOADOUT_BUTTONS * button_size[1]) - ((NUM_LOADOUT_BUTTONS - 1) * spacing)) / 2
 		local y_offset = (loadout_buttons_height - button_size[2]) / 2
-		for button_column = 1, MAX_LOADOUTS do
+		local loadout_buttons = {}
+		for button_column = 1, NUM_LOADOUT_BUTTONS do
 			local x_offset = margin + (button_column - 1) * (button_size[1] + spacing);
-			local column_string = tostring(button_column)
-			local name = (window_name .. "_" .. column_string)
-			local button = self.loadouts_window:create_button(name, {x_offset, y_offset}, button_size, nil, column_string, button_column)
+			local name = (window_name .. "_" .. button_column)
+			local button = self.loadouts_window:create_button(name, {x_offset, y_offset}, button_size, nil, "", button_column)
 			button.theme = self.button_theme
 			button.on_click = on_button_click
 			button.on_right_click = on_button_right_click
-			local loadout = self:get_loadout(button_column, career_name)
-			button.tooltip = "   " .. ((loadout and loadout.name) or self:localize("loadout_details_title_default", button_column))
+			loadout_buttons[button_column] = button
 		end
+
+		-- Add buttons to move between 'pages' of loadout buttons.
+		local btn_x = spacing
+		local prev_page_button = self.loadouts_window:create_button((window_name .. "_prev_btn"), {btn_x, y_offset}, button_size, nil, "", -1)
+		prev_page_button.theme = self.change_page_button_theme
+		btn_x = window_size[1] - button_size[1] - spacing
+		local next_page_button = self.loadouts_window:create_button((window_name .. "_next_btn"), {btn_x, y_offset}, button_size, nil, "", 1)
+		next_page_button.theme = self.change_page_button_theme
+
+		local set_button_texts = function()
+			for button_column = 1, NUM_LOADOUT_BUTTONS do
+				local button = loadout_buttons[button_column]
+				local loadout_number = compute_loadout_number(button_column)
+				button.text = tostring(loadout_number)
+				local loadout = self:get_loadout(loadout_number, career_name)
+				button.tooltip = "   " .. ((loadout and loadout.name) or self:localize("loadout_details_title_default", loadout_number))
+			end
+			prev_page_button.text = (self.loadouts_window.loadouts_page_index > 0 and "<<") or ""
+			next_page_button.text = (self.loadouts_window.loadouts_page_index < (NUM_LOADOUTS_BUTTONS_PAGES - 1) and ">>") or ""
+		end
+		set_button_texts()
+
+		local on_change_page_button_click = function(button)
+			local new_index = self.loadouts_window.loadouts_page_index + button.params
+			self.loadouts_window.loadouts_page_index = math.clamp(new_index, 0, NUM_LOADOUTS_BUTTONS_PAGES - 1)
+			set_button_texts()
+		end
+		prev_page_button.on_click = on_change_page_button_click
+		next_page_button.on_click = on_change_page_button_click
 
 		self.loadouts_window.on_hover_enter = function(window)
 			window:focus()
